@@ -19,19 +19,19 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <iostream>
+#include <arpa/inet.h>
 
 class http_server
 {
 public:
-    http_server( int socket );
-    http_server( const http_server& orig );
-    virtual uint32_t configure();
-    virtual void run();
-    virtual void callback_uri( struct evhttp_request *request, void *ctx );
+    http_server( const in_addr_t in_addr, const in_port_t in_port = htons(80), const uint32_t in_thread_count = 1 );
+    http_server( const int in_socket, const uint32_t in_thread_count = 1 );
     virtual ~http_server();
 protected:
-    struct event_base   *m_evbase;
-    struct evhttp       *m_evhttp;
+    virtual void* dispatch(void *in_arg);
+    virtual void generic_callback( struct evhttp_request *in_request, void *in_arg );
+    virtual void process_request( struct evhttp_request *in_request );
+    int                 m_socket;
 private:
     
 };
