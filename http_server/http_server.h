@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <map>
+#include <signal.h>
 
 class http_server
 {

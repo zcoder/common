@@ -5,8 +5,6 @@
  * Created on 9 Июнь 2012 г., 6:07
  */
 
-#include <map>
-
 #include "http_server.h"
 http_server::http_server( const in_addr_t in_addr, const in_port_t in_port, const uint32_t in_thread_count )
 {
@@ -37,6 +35,10 @@ m_socket(socket)
     if ((flags = fcntl(m_socket, F_GETFL, 0)) < 0 || fcntl(m_socket, F_SETFL, flags | O_NONBLOCK) < 0)
         throw std::exception();
     fill_mime_type();
+    struct sigaction sig_pipe;
+    memset(&sig_pipe, 0, sizeof(sig_pipe));
+    sig_pipe.sa_handler=SIG_IGN;
+    sigaction(SIGPIPE, &sig_pipe, NULL);
     
     pthread_t threads[in_thread_count];
     for (int i=0; i < in_thread_count; ++i)
@@ -204,7 +206,7 @@ void http_server::process_request(evhttp_request* in_request)
     evhttp_add_header (in_request->output_headers, "Content-Type", mime.c_str()); 
     evhttp_send_reply (in_request, HTTP_OK, "HTTP_CONTENT_OK", l_buffer); 
     evbuffer_free(l_buffer);
-    close (fd); 
+    close(fd);
     
     // ---- post_processing
     if (!(cb_count % 10000))
