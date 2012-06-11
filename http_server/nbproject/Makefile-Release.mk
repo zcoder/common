@@ -39,11 +39,11 @@ OBJECTFILES= \
 
 
 # C Compiler Flags
-CFLAGS=
+CFLAGS=-m64 -O9 -fomit-frame-pointer -funroll-all-loops -pipe
 
 # CC Compiler Flags
-CCFLAGS=
-CXXFLAGS=
+CCFLAGS=-m64 -O9 -fomit-frame-pointer -funroll-all-loops -pipe
+CXXFLAGS=-m64 -O9 -fomit-frame-pointer -funroll-all-loops -pipe
 
 # Fortran Compiler Flags
 FFLAGS=
@@ -52,7 +52,7 @@ FFLAGS=
 ASFLAGS=
 
 # Link Libraries and Options
-LDLIBSOPTIONS=
+LDLIBSOPTIONS=-levent -lpthread -ldl -lrt -lev -levent_core -levent_extra
 
 # Build Targets
 .build-conf: ${BUILD_SUBPROJECTS}
@@ -60,17 +60,17 @@ LDLIBSOPTIONS=
 
 ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/http_server: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
-	${LINK.cc} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/http_server ${OBJECTFILES} ${LDLIBSOPTIONS} 
+	${LINK.cc} --static -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/http_server -s ${OBJECTFILES} ${LDLIBSOPTIONS} 
 
-${OBJECTDIR}/http_server.o: http_server.cpp 
+${OBJECTDIR}/http_server.o: nbproject/Makefile-${CND_CONF}.mk http_server.cpp 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
-	$(COMPILE.cc) -O2 -MMD -MP -MF $@.d -o ${OBJECTDIR}/http_server.o http_server.cpp
+	$(COMPILE.cc) -s -DNDEBUG -MMD -MP -MF $@.d -o ${OBJECTDIR}/http_server.o http_server.cpp
 
-${OBJECTDIR}/main.o: main.cpp 
+${OBJECTDIR}/main.o: nbproject/Makefile-${CND_CONF}.mk main.cpp 
 	${MKDIR} -p ${OBJECTDIR}
 	${RM} $@.d
-	$(COMPILE.cc) -O2 -MMD -MP -MF $@.d -o ${OBJECTDIR}/main.o main.cpp
+	$(COMPILE.cc) -s -DNDEBUG -MMD -MP -MF $@.d -o ${OBJECTDIR}/main.o main.cpp
 
 # Subprojects
 .build-subprojects:
