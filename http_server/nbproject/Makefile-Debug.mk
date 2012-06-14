@@ -34,6 +34,7 @@ OBJECTDIR=${CND_BUILDDIR}/${CND_CONF}/${CND_PLATFORM}
 
 # Object Files
 OBJECTFILES= \
+	${OBJECTDIR}/c_evbuffer.o \
 	${OBJECTDIR}/http_server.o \
 	${OBJECTDIR}/main.o
 
@@ -61,6 +62,11 @@ LDLIBSOPTIONS=-levent
 ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/http_server: ${OBJECTFILES}
 	${MKDIR} -p ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}
 	${LINK.cc} -o ${CND_DISTDIR}/${CND_CONF}/${CND_PLATFORM}/http_server ${OBJECTFILES} ${LDLIBSOPTIONS} 
+
+${OBJECTDIR}/c_evbuffer.o: c_evbuffer.cpp 
+	${MKDIR} -p ${OBJECTDIR}
+	${RM} $@.d
+	$(COMPILE.cc) -g -MMD -MP -MF $@.d -o ${OBJECTDIR}/c_evbuffer.o c_evbuffer.cpp
 
 ${OBJECTDIR}/http_server.o: http_server.cpp 
 	${MKDIR} -p ${OBJECTDIR}

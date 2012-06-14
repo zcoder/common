@@ -33,7 +33,7 @@ public:
     http_server( const in_addr_t in_addr, const in_port_t in_port = 20480, const uint32_t in_thread_count = 1 );
     http_server( const int in_socket, const uint32_t in_thread_count = 1 );
     virtual ~http_server();
-    virtual void process_request( struct evhttp_request *in_request );
+    virtual void process_request( struct evhttp_request* in_request_ptr );
     virtual std::string find_mime_type(std::string in_ext);
     virtual void fill_mime_type();
 private:

@@ -6,6 +6,7 @@
  */
 
 #include "http_server.h"
+#include "c_evbuffer.h"
 http_server::http_server( const in_addr_t in_addr, const in_port_t in_port, const uint32_t in_thread_count )
 {
     struct sockaddr_in l_sockaddr_in;
@@ -35,10 +36,19 @@ m_socket(socket)
     if ((flags = fcntl(m_socket, F_GETFL, 0)) < 0 || fcntl(m_socket, F_SETFL, flags | O_NONBLOCK) < 0)
         throw std::exception();
     fill_mime_type();
-    struct sigaction sig_pipe;
-    memset(&sig_pipe, 0, sizeof(sig_pipe));
-    sig_pipe.sa_handler=SIG_IGN;
-    sigaction(SIGPIPE, &sig_pipe, NULL);
+    
+    // --- signal magic
+    struct sigaction sigact_pipe;
+    sigset_t sigset_pipe;
+    sigemptyset(&sigset_pipe);
+    sigaddset(&sigset_pipe, SIGPIPE);
+    memset(&sigact_pipe, 0, sizeof(sigact_pipe));
+    sigact_pipe.sa_mask = sigset_pipe;
+    sigact_pipe.sa_handler=SIG_IGN;
+    sigact_pipe.sa_flags = 0;
+    sigaction(SIGPIPE, &sigact_pipe, NULL);
+    sigprocmask(SIG_BLOCK, &sigset_pipe, NULL);
+    // --- signal magic
     
     pthread_t threads[in_thread_count];
     for (int i=0; i < in_thread_count; ++i)
@@ -52,6 +62,7 @@ m_socket(socket)
         result = evhttp_accept_socket(ev_httpd, m_socket);
         if (result != 0)
             throw std::exception();
+        evhttp_set_timeout(ev_httpd, 2);
         evhttp_set_gencb(ev_httpd, generic_callback, this);
         result = pthread_create(&threads[i], NULL, dispatch, ev_base);
         if (result != 0)
@@ -144,74 +155,79 @@ void http_server::fill_mime_type()
     m_mime_map.insert(mime_map_t::value_type("mp4","audio/mp4"));
 }
 
-void http_server::process_request(evhttp_request* in_request)
+void http_server::process_request(struct evhttp_request* in_request)
 {
-    struct evbuffer *l_buffer = evbuffer_new();
-    if (l_buffer == NULL) 
-        throw std::exception();
-    // ---- prepare
-    const char* l_uri = evhttp_request_uri(in_request);
-    ++cb_count;
-    struct timeval curr;
-    gettimeofday(&curr, NULL);
-    double timediff = ((double)curr.tv_sec + (double)curr.tv_usec/1000000) - ((double)start.tv_sec + (double)start.tv_usec/1000000);
-    int fd;
-    struct stat stbuf; 
-    int total_read_bytes, read_bytes;
-    
-    // ---- processing
-    if (!l_uri)
+    try
     {
-        evbuffer_add_printf(l_buffer, "Bad request"); 
-        evhttp_send_reply(in_request, HTTP_BADREQUEST, "Bad request", l_buffer); 
-        evbuffer_free(l_buffer); 
-        return; 
-    }
-    
-    if ((fd = open (l_uri, O_RDONLY)) < 0) 
-    { 
-        evbuffer_add_printf(l_buffer, " File %s not found", l_uri); 
-        evhttp_send_reply(in_request, HTTP_NOTFOUND, "File not found", l_buffer); 
-        evbuffer_free(l_buffer); 
-        return; 
-    } 
-    if (fstat (fd, &stbuf) < 0) 
-    { 
-        evbuffer_add_printf(l_buffer, "File %s not found", l_uri); 
-        evhttp_send_reply(in_request, HTTP_NOTFOUND, "File not found", l_buffer); 
-        evbuffer_free(l_buffer); 
-        close(fd); 
-        return; 
-    } 
-    
-    total_read_bytes = 0; 
-    while (total_read_bytes < stbuf.st_size) 
-    { 
-        read_bytes = evbuffer_read(l_buffer, fd, stbuf.st_size); 
-        if (read_bytes < 0) 
-        { 
-            evbuffer_add_printf(l_buffer, "Error reading file %s", l_uri); 
-            evhttp_send_reply(in_request, HTTP_NOTFOUND, "File not found", l_buffer); 
-            evbuffer_free(l_buffer); 
-            close(fd); 
-            return;
-        } 
-        total_read_bytes += read_bytes; 
-    } 
+        c_evbuffer l_buffer;
+        //c_evrequest in_request(in_request_ptr);
+        // ---- prepare
+        const char* l_uri = evhttp_request_uri(in_request);
+        if (!strcmp(l_uri, "/exit"))
+            exit(2);
+        ++cb_count;
+        struct timeval curr;
+        gettimeofday(&curr, NULL);
+        double timediff = ((double)curr.tv_sec + (double)curr.tv_usec/1000000) - ((double)start.tv_sec + (double)start.tv_usec/1000000);
+        int fd;
+        struct stat stbuf; 
+        int total_read_bytes, read_bytes;
+        // ---- processing
+        if (!l_uri)
+        {
+            evbuffer_add_printf(l_buffer, "Bad request"); 
+            evhttp_send_reply(in_request, HTTP_BADREQUEST, "Bad request", l_buffer); 
+            return; 
+        }
 
-    std::string fn = l_uri;
-    std::string fe = fn.substr(fn.find_last_of(".") + 1);
-    std::string mime = find_mime_type(fe);
-    
-    evhttp_add_header (in_request->output_headers, "Content-Type", mime.c_str()); 
-    evhttp_send_reply (in_request, HTTP_OK, "HTTP_CONTENT_OK", l_buffer); 
-    evbuffer_free(l_buffer);
-    close(fd);
-    
-    // ---- post_processing
-    if (!(cb_count % 10000))
+        if ((fd = open (l_uri, O_RDONLY)) < 0) 
+        { 
+            evbuffer_add_printf(l_buffer, " File %s not found", l_uri); 
+            evhttp_send_reply(in_request, HTTP_NOTFOUND, "File not found", l_buffer); 
+            return; 
+        } 
+        if (fstat (fd, &stbuf) < 0) 
+        { 
+            evbuffer_add_printf(l_buffer, "File %s not found", l_uri); 
+            evhttp_send_reply(in_request, HTTP_NOTFOUND, "File not found", l_buffer); 
+            close(fd); 
+            return; 
+        } 
+
+        total_read_bytes = 0; 
+        while (total_read_bytes < stbuf.st_size) 
+        { 
+            read_bytes = evbuffer_read(l_buffer, fd, stbuf.st_size); 
+            if (read_bytes < 0) 
+            { 
+                evbuffer_add_printf(l_buffer, "Error reading file %s", l_uri); 
+                evhttp_send_reply(in_request, HTTP_NOTFOUND, "File not found", l_buffer); 
+                close(fd);
+                return;
+            } 
+            total_read_bytes += read_bytes; 
+        } 
+
+        std::string fn = l_uri;
+        std::string fe = fn.substr(fn.find_last_of(".") + 1);
+        std::string mime = find_mime_type(fe);
+
+        evhttp_add_header (in_request->output_headers, "Content-Type", mime.c_str());
+        evhttp_send_reply (in_request, HTTP_OK, "HTTP_CONTENT_OK", l_buffer);
+
+        close(fd);
+
+        // ---- post_processing
+        if (!(cb_count % 10000))
+        {
+            std::cerr << "req=" << cb_count << " s=" << timediff << " rps=" << double(double(cb_count) / timediff) << " uri=" << l_uri << std::endl;
+        }
+    }
+    catch(...)
     {
-        std::cerr << "req=" << cb_count << " s=" << timediff << " rps=" << double(double(cb_count) / timediff) << " uri=" << l_uri << std::endl;
+        if (in_request)
+            evhttp_request_free(in_request);
+        std::cerr << "exception" << std::endl;
     }
 }
 
